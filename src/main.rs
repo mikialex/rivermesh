@@ -78,6 +78,7 @@ struct HalfEdgeMesh<T> {
 
 trait EditableMesh {}
 
+// https://github.com/Twinklebear/tobj
 extern crate tobj;
 
 use std::path::Path;
