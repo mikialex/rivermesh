@@ -17,16 +17,35 @@ struct HalfEdgeVertex<T> {
 }
 
 impl<T> HalfEdgeVertex<T> {
-    pub fn visit_around_edge(&self, visitor: fn(&HalfEdge<T>)) {
+    pub fn new(position: Vector3<T>, normal: Vector3<T>) -> HalfEdgeVertex<T> {
+        HalfEdgeVertex {
+            position,
+            normal,
+            edge: std::ptr::null_mut(),
+        }
+    }
+
+    pub fn edge(&self) -> Option<&HalfEdge<T>> {
+        if self.edge.is_null() {
+            return None;
+        }
         unsafe {
-            let edge = &*self.edge;
+            return Some(&*self.edge);
+        }
+    }
+
+    pub fn visit_around_edge(&self, visitor: fn(&HalfEdge<T>)) {
+        if let Some(edge) = self.edge() {
             visitor(edge);
             loop {
-                let next_edge = edge.pair().next();
-                if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
-                    visitor(next_edge);
-                } else {
-                    break;
+                if let Some(pair) = edge.pair() {
+                    if let Some(next_edge) = pair.next() {
+                        if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
+                            visitor(next_edge);
+                        } else {
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -38,14 +57,25 @@ struct HalfEdgeFace<T> {
 }
 
 impl<T> HalfEdgeFace<T> {
-    pub fn visit_around_edge(&self, visitor: fn(&HalfEdge<T>)) {
+    pub fn edge(&self) -> Option<&HalfEdge<T>> {
+        if self.edge.is_null() {
+            return None;
+        }
         unsafe {
-            let edge = &*self.edge;
+            return Some(&*self.edge);
+        }
+    }
+
+    pub fn visit_around_edge(&self, visitor: fn(&HalfEdge<T>)) {
+        if let Some(edge) = self.edge() {
             visitor(edge);
             loop {
-                let next_edge = edge.next();
-                if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
-                    visitor(next_edge);
+                if let Some(next_edge) = edge.next() {
+                    if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
+                        visitor(next_edge);
+                    } else {
+                        break;
+                    }
                 } else {
                     break;
                 }
@@ -63,17 +93,49 @@ struct HalfEdge<T> {
 }
 
 impl<T> HalfEdge<T> {
-    pub fn next(&self) -> &HalfEdge<T> {
-        unsafe { &*self.next }
+    
+    pub fn vert(&self) -> Option<&HalfEdgeVertex<T>> {
+        if self.vert.is_null() {
+            None
+        } else {
+            unsafe { Some(&*self.vert) }
+        }
     }
 
-    pub fn pair(&self) -> &HalfEdge<T> {
-        unsafe { &*self.pair }
+
+    pub fn next(&self) -> Option<&HalfEdge<T>> {
+        if self.next.is_null() {
+            None
+        } else {
+            unsafe { Some(&*self.next) }
+        }
+    }
+
+    pub fn face(&self) -> Option<&HalfEdgeFace<T>> {
+        if self.face.is_null() {
+            None
+        } else {
+            unsafe { Some(&*self.face) }
+        }
+    }
+
+    pub fn pair(&self) -> Option<&HalfEdge<T>> {
+        if self.pair.is_null() {
+            None
+        } else {
+            unsafe { Some(&*self.pair) }
+        }
     }
 }
 
 struct HalfEdgeMesh<T> {
     half_edges: Vec<HalfEdge<T>>,
+    faces: Vec<HalfEdgeFace<T>>,
+    vertices: Vec<HalfEdgeVertex<T>>,
+}
+
+impl<T> HalfEdgeMesh<T> {
+    fn createVertex(&mut self, position: Vector3<T>, normal: Vector3<T>) {}
 }
 
 trait EditableMesh {}
@@ -85,7 +147,7 @@ use std::path::Path;
 
 fn main() {
     println!("Hello, world!");
-    let cornell_box = tobj::load_obj(&Path::new("cornell_box.obj"));
+    let cornell_box = tobj::load_obj(&Path::new("assets/bunny.obj"));
     assert!(cornell_box.is_ok());
     let (models, materials) = cornell_box.unwrap();
 
