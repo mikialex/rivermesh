@@ -34,12 +34,21 @@ impl<T> HalfEdgeVertex<T> {
         }
     }
 
-    pub fn visit_around_edge(&self, visitor: fn(&HalfEdge<T>)) {
-        if let Some(edge) = self.edge() {
+    pub fn edge_mut(&self) -> Option<&mut HalfEdge<T>> {
+        if self.edge.is_null() {
+            return None;
+        }
+        unsafe {
+            return Some(&mut *self.edge);
+        }
+    }
+
+    pub fn visit_around_edge_mut(&self, visitor: &mut dyn FnMut(&mut HalfEdge<T>)) {
+        if let Some(edge) = self.edge_mut() {
             visitor(edge);
             loop {
                 if let Some(pair) = edge.pair() {
-                    if let Some(next_edge) = pair.next() {
+                    if let Some(next_edge) = pair.next_mut() {
                         if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
                             visitor(next_edge);
                         } else {
@@ -57,6 +66,24 @@ struct HalfEdgeFace<T> {
 }
 
 impl<T> HalfEdgeFace<T> {
+    pub fn newTri(
+        v1: &mut HalfEdgeVertex<T>,
+        v2: &mut HalfEdgeVertex<T>,
+        v3: &mut HalfEdgeVertex<T>,
+    ) -> Self{
+        let mut edge_v1_v2 = HalfEdge::new(v1, v2);
+        let mut edge_v2_v3 = HalfEdge::new(v2, v3);
+        let mut edge_v3_v1 = HalfEdge::new(v3, v1);
+        let mut face = HalfEdgeFace{
+            edge: &mut edge_v1_v2
+        };
+        edge_v1_v2.connectNextEdgeForFace(&mut edge_v2_v3, &mut face);
+        edge_v2_v3.connectNextEdgeForFace(&mut edge_v3_v1, &mut face);
+        edge_v3_v1.connectNextEdgeForFace(&mut edge_v1_v2, &mut face);
+        face
+    }
+
+
     pub fn edge(&self) -> Option<&HalfEdge<T>> {
         if self.edge.is_null() {
             return None;
@@ -93,6 +120,36 @@ struct HalfEdge<T> {
 }
 
 impl<T> HalfEdge<T> {
+    pub fn new(from: &mut HalfEdgeVertex<T>, to: &mut HalfEdgeVertex<T>) -> HalfEdge<T> {
+        let mut half_edge = HalfEdge {
+            vert:  from,
+            pair: std::ptr::null_mut(),
+            face:  std::ptr::null_mut(),
+            next:  std::ptr::null_mut(),
+        };
+        if from.edge.is_null() {
+            from.edge = &mut half_edge
+        };
+        half_edge.tryFindPair(to);
+        
+        half_edge
+    }
+
+    fn connectNextEdgeForFace(&mut self, next:  &mut Self, face: &mut HalfEdgeFace<T>) ->  &mut Self {
+        self.next = next;
+        self.face = face;
+        self
+    }
+
+    fn tryFindPair(&mut self, to: &HalfEdgeVertex<T>) -> &mut Self {
+        to.visit_around_edge_mut(&mut |edge: &mut HalfEdge<T>| {
+            let back = edge.next().unwrap().vert().unwrap();
+            if back as *const HalfEdgeVertex<T> == self.vert().unwrap() as *const HalfEdgeVertex<T>{
+                self.pair = edge;
+            }
+        });
+        self
+    }
     
     pub fn vert(&self) -> Option<&HalfEdgeVertex<T>> {
         if self.vert.is_null() {
@@ -103,11 +160,19 @@ impl<T> HalfEdge<T> {
     }
 
 
-    pub fn next(&self) -> Option<&HalfEdge<T>> {
+    pub fn next(&self) -> Option<&Self> {
         if self.next.is_null() {
             None
         } else {
             unsafe { Some(&*self.next) }
+        }
+    }
+
+    pub fn next_mut(&self) -> Option<&mut Self> {
+        if self.next.is_null() {
+            None
+        } else {
+            unsafe { Some(&mut *self.next) }
         }
     }
 
@@ -119,7 +184,7 @@ impl<T> HalfEdge<T> {
         }
     }
 
-    pub fn pair(&self) -> Option<&HalfEdge<T>> {
+    pub fn pair(&self) -> Option<&Self> {
         if self.pair.is_null() {
             None
         } else {
@@ -135,7 +200,6 @@ struct HalfEdgeMesh<T> {
 }
 
 impl<T> HalfEdgeMesh<T> {
-    fn createVertex(&mut self, position: Vector3<T>, normal: Vector3<T>) {}
 }
 
 trait EditableMesh {}
