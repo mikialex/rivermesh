@@ -66,23 +66,23 @@ struct HalfEdgeFace<T> {
 }
 
 impl<T> HalfEdgeFace<T> {
-    pub fn newTri(
+
+    pub fn new_tri(
         v1: &mut HalfEdgeVertex<T>,
         v2: &mut HalfEdgeVertex<T>,
         v3: &mut HalfEdgeVertex<T>,
-    ) -> Self{
+    ) -> Self {
         let mut edge_v1_v2 = HalfEdge::new(v1, v2);
         let mut edge_v2_v3 = HalfEdge::new(v2, v3);
         let mut edge_v3_v1 = HalfEdge::new(v3, v1);
-        let mut face = HalfEdgeFace{
-            edge: &mut edge_v1_v2
+        let mut face = HalfEdgeFace {
+            edge: &mut edge_v1_v2,
         };
-        edge_v1_v2.connectNextEdgeForFace(&mut edge_v2_v3, &mut face);
-        edge_v2_v3.connectNextEdgeForFace(&mut edge_v3_v1, &mut face);
-        edge_v3_v1.connectNextEdgeForFace(&mut edge_v1_v2, &mut face);
+        edge_v1_v2.connect_next_edge_for_face(&mut edge_v2_v3, &mut face);
+        edge_v2_v3.connect_next_edge_for_face(&mut edge_v3_v1, &mut face);
+        edge_v3_v1.connect_next_edge_for_face(&mut edge_v1_v2, &mut face);
         face
     }
-
 
     pub fn edge(&self) -> Option<&HalfEdge<T>> {
         if self.edge.is_null() {
@@ -122,35 +122,36 @@ struct HalfEdge<T> {
 impl<T> HalfEdge<T> {
     pub fn new(from: &mut HalfEdgeVertex<T>, to: &mut HalfEdgeVertex<T>) -> HalfEdge<T> {
         let mut half_edge = HalfEdge {
-            vert:  from,
+            vert: from,
             pair: std::ptr::null_mut(),
-            face:  std::ptr::null_mut(),
-            next:  std::ptr::null_mut(),
+            face: std::ptr::null_mut(),
+            next: std::ptr::null_mut(),
         };
         if from.edge.is_null() {
             from.edge = &mut half_edge
         };
-        half_edge.tryFindPair(to);
-        
+        half_edge.try_find_pair(to);
+
         half_edge
     }
 
-    fn connectNextEdgeForFace(&mut self, next:  &mut Self, face: &mut HalfEdgeFace<T>) ->  &mut Self {
+    fn connect_next_edge_for_face(&mut self, next: &mut Self, face: &mut HalfEdgeFace<T>) -> &mut Self {
         self.next = next;
         self.face = face;
         self
     }
 
-    fn tryFindPair(&mut self, to: &HalfEdgeVertex<T>) -> &mut Self {
+    fn try_find_pair(&mut self, to: &HalfEdgeVertex<T>) -> &mut Self {
         to.visit_around_edge_mut(&mut |edge: &mut HalfEdge<T>| {
             let back = edge.next().unwrap().vert().unwrap();
-            if back as *const HalfEdgeVertex<T> == self.vert().unwrap() as *const HalfEdgeVertex<T>{
+            if back as *const HalfEdgeVertex<T> == self.vert().unwrap() as *const HalfEdgeVertex<T>
+            {
                 self.pair = edge;
             }
         });
         self
     }
-    
+
     pub fn vert(&self) -> Option<&HalfEdgeVertex<T>> {
         if self.vert.is_null() {
             None
@@ -158,7 +159,6 @@ impl<T> HalfEdge<T> {
             unsafe { Some(&*self.vert) }
         }
     }
-
 
     pub fn next(&self) -> Option<&Self> {
         if self.next.is_null() {
@@ -199,8 +199,7 @@ struct HalfEdgeMesh<T> {
     vertices: Vec<HalfEdgeVertex<T>>,
 }
 
-impl<T> HalfEdgeMesh<T> {
-}
+impl<T> HalfEdgeMesh<T> {}
 
 trait EditableMesh {}
 
@@ -222,6 +221,32 @@ fn main() {
         println!("model[{}].name = \'{}\'", i, m.name);
         println!("model[{}].mesh.material_id = {:?}", i, mesh.material_id);
 
+        // Normals and texture coordinates are also loaded, but not printed in this example
+        println!("model[{}].vertices: {}", i, mesh.positions.len() / 3);
+        assert!(mesh.positions.len() % 3 == 0);
+        let mut vertices = Vec::new();
+        for v in 0..mesh.positions.len() / 3 {
+            println!(
+                "    v[{}] = ({}, {}, {})",
+                v,
+                mesh.positions[3 * v],
+                mesh.positions[3 * v + 1],
+                mesh.positions[3 * v + 2]
+            );
+
+            let vert = HalfEdgeVertex::new(
+                Vector3::new(
+                    mesh.positions[3 * v],
+                    mesh.positions[3 * v + 1],
+                    mesh.positions[3 * v + 2],
+                ),
+                Vector3::new(1.0, 0.0, 0.0),
+            );
+            vertices.push(vert);
+        }
+
+        let mut faces = Vec::new();
+
         println!("Size of model[{}].indices: {}", i, mesh.indices.len());
         for f in 0..mesh.indices.len() / 3 {
             println!(
@@ -231,19 +256,15 @@ fn main() {
                 mesh.indices[3 * f + 1],
                 mesh.indices[3 * f + 2]
             );
+
+            let face = HalfEdgeFace::new_tri(
+                &mut vertices[f * 3], 
+                &mut vertices[f * 3 + 1], 
+                &mut vertices[f * 3 + 2],
+            );
+            faces.push(face);
+            
         }
 
-        // Normals and texture coordinates are also loaded, but not printed in this example
-        println!("model[{}].vertices: {}", i, mesh.positions.len() / 3);
-        assert!(mesh.positions.len() % 3 == 0);
-        for v in 0..mesh.positions.len() / 3 {
-            println!(
-                "    v[{}] = ({}, {}, {})",
-                v,
-                mesh.positions[3 * v],
-                mesh.positions[3 * v + 1],
-                mesh.positions[3 * v + 2]
-            );
-        }
     }
 }
