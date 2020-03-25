@@ -1,3 +1,4 @@
+#[derive(Debug, Copy, Clone)]
 struct Vector3<T> {
     x: T,
     y: T,
@@ -66,11 +67,10 @@ struct HalfEdgeFace<T> {
 }
 
 impl<T> HalfEdgeFace<T> {
-
     pub fn new_tri(
-        v1: &mut HalfEdgeVertex<T>,
-        v2: &mut HalfEdgeVertex<T>,
-        v3: &mut HalfEdgeVertex<T>,
+        v1: *mut HalfEdgeVertex<T>,
+        v2: *mut HalfEdgeVertex<T>,
+        v3: *mut HalfEdgeVertex<T>,
     ) -> Self {
         let mut edge_v1_v2 = HalfEdge::new(v1, v2);
         let mut edge_v2_v3 = HalfEdge::new(v2, v3);
@@ -113,42 +113,59 @@ impl<T> HalfEdgeFace<T> {
 
 // http://www.flipcode.com/archives/The_Half-Edge_Data_Structure.shtml
 struct HalfEdge<T> {
+    /// vertex at the start of the half-edge
     vert: *mut HalfEdgeVertex<T>,
+
+    /// oppositely oriented adjacent half-edge
     pair: *mut HalfEdge<T>,
+
+    /// face the half-edge borders
     face: *mut HalfEdgeFace<T>,
+
+    /// next half-edge around the face
     next: *mut HalfEdge<T>,
 }
 
 impl<T> HalfEdge<T> {
-    pub fn new(from: &mut HalfEdgeVertex<T>, to: &mut HalfEdgeVertex<T>) -> HalfEdge<T> {
+    fn new(from: *mut HalfEdgeVertex<T>, to: *mut HalfEdgeVertex<T>) -> HalfEdge<T> {
         let mut half_edge = HalfEdge {
             vert: from,
             pair: std::ptr::null_mut(),
             face: std::ptr::null_mut(),
             next: std::ptr::null_mut(),
         };
-        if from.edge.is_null() {
-            from.edge = &mut half_edge
-        };
-        half_edge.try_find_pair(to);
+
+        // make sure vertex has a edge to point
+        unsafe {
+            if (*from).edge.is_null() {
+                (*from).edge = &mut half_edge
+            };
+        }
 
         half_edge
     }
 
-    fn connect_next_edge_for_face(&mut self, next: &mut Self, face: &mut HalfEdgeFace<T>) -> &mut Self {
+    fn connect_next_edge_for_face(
+        &mut self,
+        next: &mut Self,
+        face: &mut HalfEdgeFace<T>,
+    ) -> &mut Self {
         self.next = next;
         self.face = face;
         self
     }
 
-    fn try_find_pair(&mut self, to: &HalfEdgeVertex<T>) -> &mut Self {
-        to.visit_around_edge_mut(&mut |edge: &mut HalfEdge<T>| {
-            let back = edge.next().unwrap().vert().unwrap();
-            if back as *const HalfEdgeVertex<T> == self.vert().unwrap() as *const HalfEdgeVertex<T>
-            {
-                self.pair = edge;
-            }
-        });
+    fn update_pair(&mut self, to: *const HalfEdgeVertex<T>) -> &mut Self {
+        unsafe {
+            (*to).visit_around_edge_mut(&mut |edge: &mut HalfEdge<T>| {
+                let back = edge.next().unwrap().vert().unwrap();
+                if back as *const HalfEdgeVertex<T>
+                    == self.vert().unwrap() as *const HalfEdgeVertex<T>
+                {
+                    self.pair = edge;
+                }
+            });
+        }
         self
     }
 
@@ -226,14 +243,6 @@ fn main() {
         assert!(mesh.positions.len() % 3 == 0);
         let mut vertices = Vec::new();
         for v in 0..mesh.positions.len() / 3 {
-            println!(
-                "    v[{}] = ({}, {}, {})",
-                v,
-                mesh.positions[3 * v],
-                mesh.positions[3 * v + 1],
-                mesh.positions[3 * v + 2]
-            );
-
             let vert = HalfEdgeVertex::new(
                 Vector3::new(
                     mesh.positions[3 * v],
@@ -248,23 +257,14 @@ fn main() {
         let mut faces = Vec::new();
 
         println!("Size of model[{}].indices: {}", i, mesh.indices.len());
-        for f in 0..mesh.indices.len() / 3 {
-            println!(
-                "    idx[{}] = {}, {}, {}.",
-                f,
-                mesh.indices[3 * f],
-                mesh.indices[3 * f + 1],
-                mesh.indices[3 * f + 2]
-            );
 
+        for f in 0..mesh.indices.len() / 3 {
             let face = HalfEdgeFace::new_tri(
-                &mut vertices[f * 3], 
-                &mut vertices[f * 3 + 1], 
-                &mut vertices[f * 3 + 2],
+                &mut vertices[mesh.indices[3 * f] as usize],
+                &mut vertices[mesh.indices[3 * f + 1] as usize],
+                &mut vertices[mesh.indices[3 * f + 2] as usize],
             );
             faces.push(face);
-            
         }
-
     }
 }
