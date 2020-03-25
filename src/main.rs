@@ -73,7 +73,7 @@ impl<T> HalfEdgeFace<T> {
         v3: *mut HalfEdgeVertex<T>,
         edges: &mut Vec<HalfEdge<T>>,
     ) -> Self {
-        
+
         edges.push(HalfEdge::new(v1, v2));
         let edge_v1_v2 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
         edges.push(HalfEdge::new(v2, v3));
@@ -85,6 +85,7 @@ impl<T> HalfEdgeFace<T> {
             edge: edge_v1_v2,
         };
 
+        // TODO face will be moved
         unsafe{
             (*edge_v1_v2).connect_next_edge_for_face(edge_v2_v3, &mut face);
             (*edge_v2_v3).connect_next_edge_for_face(edge_v3_v1, &mut face);
@@ -220,12 +221,17 @@ impl<T> HalfEdge<T> {
 }
 
 struct HalfEdgeMesh<T> {
-    // half_edges: Vec<HalfEdge<T>>,
+    half_edges: Vec<HalfEdge<T>>,
     faces: Vec<HalfEdgeFace<T>>,
     vertices: Vec<HalfEdgeVertex<T>>,
 }
 
-impl<T> HalfEdgeMesh<T> {}
+impl<T> HalfEdgeMesh<T> {
+    pub fn make_empty() -> Self {
+        // HalfEdgeMesh
+        todo!()
+    }
+}
 
 trait EditableMesh {}
 
