@@ -71,16 +71,25 @@ impl<T> HalfEdgeFace<T> {
         v1: *mut HalfEdgeVertex<T>,
         v2: *mut HalfEdgeVertex<T>,
         v3: *mut HalfEdgeVertex<T>,
+        edges: &mut Vec<HalfEdge<T>>,
     ) -> Self {
-        let mut edge_v1_v2 = HalfEdge::new(v1, v2);
-        let mut edge_v2_v3 = HalfEdge::new(v2, v3);
-        let mut edge_v3_v1 = HalfEdge::new(v3, v1);
+        
+        edges.push(HalfEdge::new(v1, v2));
+        let edge_v1_v2 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
+        edges.push(HalfEdge::new(v2, v3));
+        let edge_v2_v3 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
+        edges.push(HalfEdge::new(v3, v1));
+        let edge_v3_v1 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
+
         let mut face = HalfEdgeFace {
-            edge: &mut edge_v1_v2,
+            edge: edge_v1_v2,
         };
-        edge_v1_v2.connect_next_edge_for_face(&mut edge_v2_v3, &mut face);
-        edge_v2_v3.connect_next_edge_for_face(&mut edge_v3_v1, &mut face);
-        edge_v3_v1.connect_next_edge_for_face(&mut edge_v1_v2, &mut face);
+
+        unsafe{
+            (*edge_v1_v2).connect_next_edge_for_face(edge_v2_v3, &mut face);
+            (*edge_v2_v3).connect_next_edge_for_face(edge_v3_v1, &mut face);
+            (*edge_v3_v1).connect_next_edge_for_face(edge_v1_v2, &mut face);
+        }
         face
     }
 
@@ -147,7 +156,7 @@ impl<T> HalfEdge<T> {
 
     fn connect_next_edge_for_face(
         &mut self,
-        next: &mut Self,
+        next: *mut Self,
         face: &mut HalfEdgeFace<T>,
     ) -> &mut Self {
         self.next = next;
@@ -211,7 +220,7 @@ impl<T> HalfEdge<T> {
 }
 
 struct HalfEdgeMesh<T> {
-    half_edges: Vec<HalfEdge<T>>,
+    // half_edges: Vec<HalfEdge<T>>,
     faces: Vec<HalfEdgeFace<T>>,
     vertices: Vec<HalfEdgeVertex<T>>,
 }
@@ -241,6 +250,7 @@ fn main() {
         // Normals and texture coordinates are also loaded, but not printed in this example
         println!("model[{}].vertices: {}", i, mesh.positions.len() / 3);
         assert!(mesh.positions.len() % 3 == 0);
+
         let mut vertices = Vec::new();
         for v in 0..mesh.positions.len() / 3 {
             let vert = HalfEdgeVertex::new(
@@ -254,7 +264,8 @@ fn main() {
             vertices.push(vert);
         }
 
-        let mut faces = Vec::new();
+        let mut faces = Vec::with_capacity(10000); // TODO fix not move
+        let mut edges = Vec::with_capacity(20000);
 
         println!("Size of model[{}].indices: {}", i, mesh.indices.len());
 
@@ -263,8 +274,14 @@ fn main() {
                 &mut vertices[mesh.indices[3 * f] as usize],
                 &mut vertices[mesh.indices[3 * f + 1] as usize],
                 &mut vertices[mesh.indices[3 * f + 2] as usize],
+                &mut edges,
             );
             faces.push(face);
         }
+
+        let mesh = HalfEdgeMesh{
+            faces,
+            vertices,
+        };
     }
 }
