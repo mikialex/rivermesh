@@ -71,22 +71,18 @@ impl<T> HalfEdgeFace<T> {
         v1: *mut HalfEdgeVertex<T>,
         v2: *mut HalfEdgeVertex<T>,
         v3: *mut HalfEdgeVertex<T>,
-        edges: &mut Vec<HalfEdge<T>>,
+        edges: &mut Vec<*mut HalfEdge<T>>,
     ) -> Self {
+        edges.push(Box::into_raw(Box::new(HalfEdge::new(v1, v2))));
+        let edge_v1_v2 = *edges.last_mut().unwrap();
+        edges.push(Box::into_raw(Box::new(HalfEdge::new(v2, v3))));
+        let edge_v2_v3 = *edges.last_mut().unwrap();
+        edges.push(Box::into_raw(Box::new(HalfEdge::new(v3, v1))));
+        let edge_v3_v1 = *edges.last_mut().unwrap();
 
-        edges.push(HalfEdge::new(v1, v2));
-        let edge_v1_v2 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
-        edges.push(HalfEdge::new(v2, v3));
-        let edge_v2_v3 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
-        edges.push(HalfEdge::new(v3, v1));
-        let edge_v3_v1 = edges.last_mut().unwrap() as *mut HalfEdge<T>;
+        let mut face = HalfEdgeFace { edge: edge_v1_v2 };
 
-        let mut face = HalfEdgeFace {
-            edge: edge_v1_v2,
-        };
-
-        // TODO face will be moved
-        unsafe{
+        unsafe {
             (*edge_v1_v2).connect_next_edge_for_face(edge_v2_v3, &mut face);
             (*edge_v2_v3).connect_next_edge_for_face(edge_v3_v1, &mut face);
             (*edge_v3_v1).connect_next_edge_for_face(edge_v1_v2, &mut face);
@@ -221,15 +217,62 @@ impl<T> HalfEdge<T> {
 }
 
 struct HalfEdgeMesh<T> {
-    half_edges: Vec<HalfEdge<T>>,
-    faces: Vec<HalfEdgeFace<T>>,
-    vertices: Vec<HalfEdgeVertex<T>>,
+    pub edges: Vec<*mut HalfEdge<T>>,
+    pub faces: Vec<*mut HalfEdgeFace<T>>,
+    pub vertices: Vec<*mut HalfEdgeVertex<T>>,
 }
 
-impl<T> HalfEdgeMesh<T> {
-    pub fn make_empty() -> Self {
-        // HalfEdgeMesh
-        todo!()
+impl HalfEdgeMesh<f32> {
+    pub fn from_geometry(positions: &Vec<f32>, indices: &Vec<u32>) -> Self {
+        let mut vertices = Vec::new();
+        let mut faces = Vec::new();
+        let mut edges = Vec::new();
+
+        for v in 0..positions.len() / 3 {
+            let vert = HalfEdgeVertex::new(
+                Vector3::new(positions[3 * v], positions[3 * v + 1], positions[3 * v + 2]),
+                Vector3::new(1.0, 0.0, 0.0),
+            );
+            let vert = Box::into_raw(Box::new(vert));
+            vertices.push(vert);
+        }
+
+        for f in 0..indices.len() / 3 {
+            let face = HalfEdgeFace::new_tri(
+                vertices[indices[3 * f] as usize],
+                vertices[indices[3 * f + 1] as usize],
+                vertices[indices[3 * f + 2] as usize],
+                &mut edges,
+            );
+            faces.push(Box::into_raw(Box::new(face)));
+        }
+
+        Self {
+            edges,
+            faces,
+            vertices,
+        }
+    }
+}
+
+impl<T> Drop for HalfEdgeMesh<T> {
+    fn drop(&mut self) {
+        println!("drop");
+        for v in &self.vertices {
+            unsafe {
+                let _ = Box::from_raw(*v);
+            }
+        }
+        for v in &self.faces {
+            unsafe {
+                let _ = Box::from_raw(*v);
+            }
+        }
+        for v in &self.edges {
+            unsafe {
+                let _ = Box::from_raw(*v);
+            }
+        }
     }
 }
 
@@ -241,10 +284,9 @@ extern crate tobj;
 use std::path::Path;
 
 fn main() {
-    println!("Hello, world!");
-    let cornell_box = tobj::load_obj(&Path::new("assets/bunny.obj"));
-    assert!(cornell_box.is_ok());
-    let (models, materials) = cornell_box.unwrap();
+    let bunny = tobj::load_obj(&Path::new("assets/bunny.obj"));
+    assert!(bunny.is_ok());
+    let (models, materials) = bunny.unwrap();
 
     println!("# of models: {}", models.len());
     println!("# of materials: {}", materials.len());
@@ -257,37 +299,8 @@ fn main() {
         println!("model[{}].vertices: {}", i, mesh.positions.len() / 3);
         assert!(mesh.positions.len() % 3 == 0);
 
-        let mut vertices = Vec::new();
-        for v in 0..mesh.positions.len() / 3 {
-            let vert = HalfEdgeVertex::new(
-                Vector3::new(
-                    mesh.positions[3 * v],
-                    mesh.positions[3 * v + 1],
-                    mesh.positions[3 * v + 2],
-                ),
-                Vector3::new(1.0, 0.0, 0.0),
-            );
-            vertices.push(vert);
-        }
-
-        let mut faces = Vec::with_capacity(10000); // TODO fix not move
-        let mut edges = Vec::with_capacity(20000);
-
-        println!("Size of model[{}].indices: {}", i, mesh.indices.len());
-
-        for f in 0..mesh.indices.len() / 3 {
-            let face = HalfEdgeFace::new_tri(
-                &mut vertices[mesh.indices[3 * f] as usize],
-                &mut vertices[mesh.indices[3 * f + 1] as usize],
-                &mut vertices[mesh.indices[3 * f + 2] as usize],
-                &mut edges,
-            );
-            faces.push(face);
-        }
-
-        let mesh = HalfEdgeMesh{
-            faces,
-            vertices,
-        };
+        let mesh = HalfEdgeMesh::from_geometry(&mesh.positions, &mesh.indices);
+        let a = 1;
     }
+    let b = 1;
 }
