@@ -196,11 +196,6 @@ impl<T> HalfEdge<T> {
         self
     }
 
-    fn set_pair(&mut self, edge: *mut HalfEdge<T>) -> &mut Self {
-        self.pair = edge;
-        self
-    }
-
     pub fn vert(&self) -> &HalfEdgeVertex<T> {
         unsafe { &*self.vert }
     }
@@ -295,7 +290,6 @@ impl<T> Drop for HalfEdgeMesh<T> {
     }
 }
 
-trait EditableMesh {}
 
 // https://github.com/Twinklebear/tobj
 extern crate tobj;
