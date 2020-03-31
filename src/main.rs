@@ -26,35 +26,26 @@ impl<T> HalfEdgeVertex<T> {
         }
     }
 
-    pub fn edge(&self) -> Option<&HalfEdge<T>> {
-        if self.edge.is_null() {
-            return None;
-        }
-        unsafe {
-            return Some(&*self.edge);
-        }
+    pub fn edge(&self) -> &HalfEdge<T> {
+        // it should always valid in valid half edge mesh
+        unsafe { &*self.edge }
     }
 
-    pub fn edge_mut(&self) -> Option<&mut HalfEdge<T>> {
-        if self.edge.is_null() {
-            return None;
-        }
-        unsafe {
-            return Some(&mut *self.edge);
-        }
+    pub fn edge_mut(&self) -> &mut HalfEdge<T> {
+        // it should always valid in valid half edge mesh
+        unsafe { &mut *self.edge }
     }
 
     pub fn visit_around_edge_mut(&self, visitor: &mut dyn FnMut(&mut HalfEdge<T>)) {
-        if let Some(edge) = self.edge_mut() {
-            visitor(edge);
-            loop {
-                if let Some(pair) = edge.pair_mut() {
-                    let next_edge = pair.next_mut();
-                    if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
-                        visitor(next_edge);
-                    } else {
-                        break;
-                    }
+        let edge = self.edge_mut();
+        visitor(edge);
+        loop {
+            if let Some(pair) = edge.pair_mut() {
+                let next_edge = pair.next_mut();
+                if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
+                    visitor(next_edge);
+                } else {
+                    break;
                 }
             }
         }
@@ -140,7 +131,7 @@ impl<T> HalfEdgeFace<T> {
     pub fn visit_around_edge_mut(&mut self, visitor: fn(&HalfEdge<T>)) {
         if let Some(edge) = self.edge_mut() {
             visitor(edge);
-            let edge_ptr =  edge as *const HalfEdge<T>;
+            let edge_ptr = edge as *const HalfEdge<T>;
             loop {
                 let next_edge = edge.next_mut();
                 if next_edge as *const HalfEdge<T> != edge_ptr {
@@ -290,10 +281,6 @@ impl<T> Drop for HalfEdgeMesh<T> {
         }
     }
 }
-
-
-// https://github.com/Twinklebear/tobj
-extern crate tobj;
 
 use std::{collections::HashMap, path::Path};
 
