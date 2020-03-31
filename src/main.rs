@@ -48,7 +48,7 @@ impl<T> HalfEdgeVertex<T> {
         if let Some(edge) = self.edge_mut() {
             visitor(edge);
             loop {
-                if let Some(pair) = edge.pair() {
+                if let Some(pair) = edge.pair_mut() {
                     let next_edge = pair.next_mut();
                     if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
                         visitor(next_edge);
@@ -86,9 +86,9 @@ impl<T> EdgePairFinder<T> {
     pub fn find_edge_pairs(&self, edges: &mut Vec<*mut HalfEdge<T>>) {
         for edge in edges {
             let edge = unsafe { &mut **edge };
-            if edge.pair().is_none() {
+            if edge.pair_mut().is_none() {
                 let key = (
-                    edge.next().vert_mut() as *mut HalfEdgeVertex<T>,
+                    edge.next_mut().vert_mut() as *mut HalfEdgeVertex<T>,
                     edge.vert_mut() as *mut HalfEdgeVertex<T>,
                 );
                 if let Some(pair) = self.0.get(&key) {
@@ -128,21 +128,22 @@ impl<T> HalfEdgeFace<T> {
         face
     }
 
-    pub fn edge(&self) -> Option<&HalfEdge<T>> {
+    pub fn edge_mut(&mut self) -> Option<&mut HalfEdge<T>> {
         if self.edge.is_null() {
             return None;
         }
         unsafe {
-            return Some(&*self.edge);
+            return Some(&mut *self.edge);
         }
     }
 
-    pub fn visit_around_edge(&self, visitor: fn(&HalfEdge<T>)) {
-        if let Some(edge) = self.edge() {
+    pub fn visit_around_edge_mut(&mut self, visitor: fn(&HalfEdge<T>)) {
+        if let Some(edge) = self.edge_mut() {
             visitor(edge);
+            let edge_ptr =  edge as *const HalfEdge<T>;
             loop {
                 let next_edge = edge.next_mut();
-                if next_edge as *const HalfEdge<T> != edge as *const HalfEdge<T> {
+                if next_edge as *const HalfEdge<T> != edge_ptr {
                     visitor(next_edge);
                 } else {
                     break;
@@ -200,7 +201,7 @@ impl<T> HalfEdge<T> {
         unsafe { &*self.vert }
     }
 
-    pub fn vert_mut(&self) -> &mut HalfEdgeVertex<T> {
+    pub fn vert_mut(&mut self) -> &mut HalfEdgeVertex<T> {
         unsafe { &mut *self.vert }
     }
 
@@ -208,7 +209,7 @@ impl<T> HalfEdge<T> {
         unsafe { &*self.next }
     }
 
-    pub fn next_mut(&self) -> &mut Self {
+    pub fn next_mut(&mut self) -> &mut Self {
         unsafe { &mut *self.next }
     }
 
@@ -216,11 +217,11 @@ impl<T> HalfEdge<T> {
         unsafe { &*self.face }
     }
 
-    pub fn pair(&self) -> Option<&Self> {
+    pub fn pair_mut(&self) -> Option<&mut Self> {
         if self.pair.is_null() {
             None
         } else {
-            unsafe { Some(&*self.pair) }
+            unsafe { Some(&mut *self.pair) }
         }
     }
 }
@@ -312,8 +313,8 @@ fn main() {
         println!("model[{}].vertices: {}", i, mesh.positions.len() / 3);
         assert!(mesh.positions.len() % 3 == 0);
 
-        let mesh = HalfEdgeMesh::from_geometry(&mesh.positions, &mesh.indices);
-        let a = 1;
+        let _mesh = HalfEdgeMesh::from_geometry(&mesh.positions, &mesh.indices);
+        let _a = 1;
     }
-    let b = 1;
+    let _b = 1;
 }
